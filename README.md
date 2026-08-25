@@ -1,32 +1,100 @@
 # Sky Track
 
-A shipment-tracking portal for a freight/courier operation. Customers look up a
-tracking number and get a clear status, a delivery estimate, the full history,
-and proof of delivery — instead of calling to ask "where's my shipment?". Every
-status change is pushed to them automatically.
+**Self-service shipment tracking that answers "where's my shipment?" before anyone has to call.**
 
-Built as a focused project for the Sky Transport Solutions candidate exercise.
+Sky Track is a tracking portal for a freight or courier operation. A customer types
+in a tracking number and immediately sees where their shipment is, when it will
+arrive, everything that has happened to it, and — once it's delivered — a receipt
+they can download. And they don't have to go looking in the first place, because
+every status change is pushed to them automatically.
 
-## What's in it
+It's a small, focused app built for the Sky Transport Solutions candidate exercise
+(the **Experience** track). The write-up of the problem, the decisions, and what I'd
+do next lives in [`REPORT.md`](REPORT.md).
 
-- **Customer tracking** (`/`, `/track/[trackingNumber]`) — search, live status,
-  route progress, ETA, event timeline, the notifications that were sent, and a
-  printable proof-of-delivery receipt.
-- **Operations view** (`/dispatch`) — every shipment with "Advance" and "Flag
-  delay" controls. Advancing a shipment updates the customer view and sends the
-  next notification.
-- **Seeded sample data** — eight shipments across every status, generated with
-  timestamps relative to now so it always looks current.
+![Customer tracking page](docs/screenshots/tracking.png)
 
-## Stack
+---
 
-Next.js 14 (App Router) · TypeScript · Tailwind CSS. Data is held in a small
-server-side store that persists to a JSON file (`/data`, regenerated from seed on
-first run), so there's no database to set up.
+## The problem
 
-## Run it locally
+Pick almost any freight or courier business and a surprising share of inbound calls
+are the same question: *"where's my shipment?"* The answer already exists — it's
+sitting in the dispatcher's system — but the customer can't see it, so they call.
+Every one of those calls costs staff time, interrupts the operations team, and
+still leaves the customer feeling like they're chasing.
 
-Requires Node 18.18+ (built on Node 22).
+Nobody in that exchange actually wants the phone call. The customer wants an answer;
+the dispatcher wants to move freight. The call only happens because there's no
+self-serve way to get the status, and no push to the customer when it changes.
+
+Sky Track closes both gaps.
+
+---
+
+## What it does
+
+### 1. Customers track their own shipments
+
+A tracking page with the status front and centre: a progress bar along the route,
+the current location, an up-to-date delivery estimate, and the full history in plain
+language. No login, no phone call.
+
+### 2. Customers are notified at every step
+
+Each status change generates a message — email or SMS — so the customer knows their
+shipment is picked up, in transit, out for delivery, or delayed *without* checking.
+This is the part that actually reduces call volume. Delivered shipments also get a
+printable proof-of-delivery receipt.
+
+![Delivered shipment with proof of delivery](docs/screenshots/proof-of-delivery.png)
+
+### 3. Operations drives it from one screen
+
+The dispatcher view lists every shipment and advances its status with a click —
+or flags a delay. That action is what, in a real business, produces the update the
+customer sees.
+
+![Operations view](docs/screenshots/operations.png)
+
+---
+
+## How the pieces fit
+
+Everything hangs off one idea: each shipment is an **ordered log of events**. The
+status, the current location, the progress bar, and the notification feed are all
+*derived* from that log, so they can never disagree with each other. When the
+dispatcher advances a shipment, a new event is appended — and every surface updates
+from the same source.
+
+```mermaid
+flowchart LR
+    D["Dispatcher advances<br/>a shipment"] --> S[("Shipment store<br/>(event log)")]
+    S --> C["Customer tracking page<br/>updates instantly"]
+    S --> N["Notification sent<br/>email / SMS"]
+```
+
+---
+
+## Tech stack
+
+| | |
+| --- | --- |
+| Framework | Next.js 14 (App Router) |
+| Language | TypeScript |
+| Styling | Tailwind CSS |
+| Data | Small server-side store, persisted to a JSON file |
+
+There's deliberately **no database to set up**. The store seeds itself from sample
+data on first run and persists to `/data` (and degrades to in-memory if the
+filesystem is read-only, e.g. on a serverless host). The interesting part of this
+project is the flow, not the storage — so the storage stays out of the way.
+
+---
+
+## Getting started
+
+Requires Node 18.18+ (built and tested on Node 22).
 
 ```bash
 npm install
@@ -35,22 +103,42 @@ npm run dev
 
 Open <http://localhost:3000>.
 
-Sample tracking numbers to try:
+### Sample shipments
+
+The app seeds eight shipments covering every state, with timestamps generated
+relative to now so the data always looks current.
 
 | Tracking number | State |
 | --- | --- |
 | `STS-2026-00042` | In transit |
 | `STS-2026-00051` | Out for delivery |
-| `STS-2026-00039` | Delivered (has proof of delivery) |
+| `STS-2026-00039` | Delivered (with proof of delivery) |
 | `STS-2026-00058` | Delayed |
 | `STS-2026-00055` | Booked |
 
 ### See the whole loop
 
-1. Open `STS-2026-00051` in one tab.
-2. Open `/dispatch` in another and click **Advance** on that shipment.
-3. Refresh the tracking tab — the status, timeline, and notifications have moved
-   forward. **Reset sample data** on the operations view puts everything back.
+1. Open `STS-2026-00051` on the tracking page.
+2. In another tab, open `/dispatch` and click **Advance** on that shipment.
+3. Reload the tracking tab — the status, timeline, and notifications have all moved
+   forward together. **Reset sample data** on the operations view puts everything
+   back for the next run-through.
+
+---
+
+## Run with Docker
+
+The app builds to a self-contained image (Next.js standalone output), so it runs
+anywhere with nothing installed but Docker.
+
+```bash
+docker build -t sky-transport .
+docker run --rm -p 3000:3000 sky-transport
+```
+
+Then open <http://localhost:3000>.
+
+---
 
 ## Project layout
 
@@ -70,26 +158,17 @@ src/
     format.ts                    date / label helpers
 ```
 
-## Notes
+---
 
-Notifications are simulated — they're derived from each shipment's event log and
-shown as the feed a customer would receive, rather than sent through a real
-email/SMS provider. That keeps the app runnable with no accounts or secrets. See
-`REPORT.md` for the reasoning behind that and the other trade-offs.
+## A note on what's real
 
-## Build
+Notifications are **simulated**: they're derived from each shipment's event log and
+shown as the feed a customer would receive, rather than sent through a live email or
+SMS provider. That's a deliberate choice — it keeps the app runnable by anyone with
+no accounts or API keys, while the message content and timing are exactly what a
+real integration (SendGrid, Twilio) would send. Swapping in a real provider is a
+single function at the edge; everything upstream already produces the message.
 
-```bash
-npm run build && npm start
-```
-
-## Docker
-
-The app builds to a self-contained image (Next.js standalone output).
-
-```bash
-docker build -t sky-transport .
-docker run --rm -p 3000:3000 sky-transport
-```
-
-Then open <http://localhost:3000>.
+The reasoning behind this and the other trade-offs — no map API, JSON store over a
+database, manual status advance over a TMS feed — is in [`REPORT.md`](REPORT.md),
+along with what I'd build next.
