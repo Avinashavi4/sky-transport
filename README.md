@@ -82,3 +82,14 @@ email/SMS provider. That keeps the app runnable with no accounts or secrets. See
 ```bash
 npm run build && npm start
 ```
+
+## Docker
+
+The app builds to a self-contained image (Next.js standalone output).
+
+```bash
+docker build -t sky-transport .
+docker run --rm -p 3000:3000 sky-transport
+```
+
+Then open <http://localhost:3000>.
