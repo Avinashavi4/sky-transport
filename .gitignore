@@ -1,0 +1,13 @@
+/node_modules
+/.next
+/out
+/build
+*.tsbuildinfo
+next-env.d.ts
+
+# Runtime data store (regenerated from seed on first run)
+/data
+
+npm-debug.log*
+.DS_Store
+.env*.local
